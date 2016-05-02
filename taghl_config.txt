@@ -1,0 +1,1 @@
+UserLibraries:/home/ploppz/work/taghl/libnotifymm.taghl
