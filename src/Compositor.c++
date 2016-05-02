@@ -51,8 +51,37 @@ void Compositor::RemoveWindow(Window existing_window)
     }
 }
 
-void Compositor::DamageEvent(XEvent event) {
+void Compositor::ReceiveDamageEvent(XDamageNotifyEvent* event)
+{
+    
+    /* Draw the window of the damage event and all windows above it */
+    /* .. For now, not so clever: draw all windows */
+    for (auto it = windows.begin(); it < windows.end(); it ++)
+    {
+        Window damage_drawable = ((XDamageNotifyEvent*)(&event))->drawable;
+        std::cout << "Window " << it->window << " vs Drawable " << damage_drawable << std::endl;
 
+        // if (it->window == damage_drawable)
+        if (true)
+        {
+            //
+            std::cout << "Rendering window " << it->window << std::endl;
+            XRenderComposite (*connection,
+                           it->has_alpha ? PictOpOver : PictOpSrc,
+                           it->picture,
+                           None,
+                           parent_picture,
+                           0,
+                           0,
+                           0,
+                           0,
+                           it->x,
+                           it->y,
+                           it->width,
+                           it->height);
+        }
+        XDamageSubtract(*connection, it->damage, None, None);
+    }
 }
 
 // Problem: it empties the event queue

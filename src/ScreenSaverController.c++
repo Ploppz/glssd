@@ -1,3 +1,4 @@
+#include "ScreenSaver.h"
 #include "ScreenSaverController.h"
 #include <iostream>
 #include <sys/epoll.h>
@@ -11,95 +12,99 @@
  * Child processes close the window 
 */
 
-ScreenSaverController::ScreenSaver(XConnection connection)
+ScreenSaverController::ScreenSaverController(XConnection connection)
     : connection(connection)
 {
 }
 
 void ScreenSaverController::Run()
 {
-    ScreenSaverController::State state = WAIT_IDLE;
+    ScreenSaverController::State state = INACTIVE;
 
     while (true)
     {
         switch (state)
         {
-        case WAIT_IDLE:
+        case INACTIVE:
             state = WaitForIdle();
             break;
-        case WAIT_ACTIVE:
-            state = WaitForActivity();
+        case DEMO:
+            state = RunScreenSaver();
+            break;
+        case LOGIN:
+            assert(!"LOGIN state not implemented yet.");
             break;
         }
     }
 }
 
-ScreenSaverController::State ScreenSaver::WaitForIdle()
+ScreenSaverController::State ScreenSaverController::WaitForIdle()
 {
+    assert(screen_saver == NULL);
     while (true)
     {
-        std::cout << "Idle: " << getIdleSeconds() << std::endl;
+        std::cout << "Idle: " << connection.GetIdleSeconds() << std::endl;
 
-        if (getIdleSeconds() > patience) {
+        if (connection.GetIdleSeconds() > patience) {
             /*** STATE TRANSITION **/
-            std::cout << "Idle!" << std::endl;
-            ensureOverlayWindow();
             // TODO Remove locker window if it exists
-            return WAIT_ACTIVE;
+            StartScreenSaver();
+            return DEMO;
         }
         sleep(1);
     }
 }
-ScreenSaverController::State ScreenSaver::WaitForActivity()
+ScreenSaverController::State ScreenSaverController::RunScreenSaver()
 {
-    assert(main_window != None);
-
-    // TODO We will need epoll to see if there are events while controling the demos
-    //  - For now, run only one demo
-    ScreenSaver screen_saver(connection);
-    screen_saver.RunScreenSaver(demo_path, 0); // synonymous with StartSS
-
-    
-    /* epoll */
-    int epoll_fd = epoll_create(1);
-    int x_fd = XConnectionNumber(*connection); // File descriptor of the X connection
-    epoll_event out_event;
-    out_event.events = EPOLLIN | EPOLLET;
-    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, x_fd, &out_event);
-
+    assert( screen_saver );
+    screen_saver->StartScreenSaver(demo_path);
     
     // XSelectInput(*connection, main_window, ButtonPressMask | KeyPressMask | PointerMotionMask);
-    XSelectInput(*connection, main_window, KeyPressMask);
+    XSelectInput(*connection, screen_saver->GetMainWindow(), KeyPressMask);
     XEvent event;
     while (true) {
-        assert (
-            epoll_wait(epoll_fd, &out_event, 1, 1000)  >= 0
-            // TODO why are we waiting here
-        );
-        while (XPending(*connection) > 0) {
-            XNextEvent(*connection, &event);
-            if (event.type == connection.GetDamageEventOffset() + XDamageNotify) {
-                screen_saver.ReceiveDamageEvent((XDamageNotifyEvent) event);
-                continue;
-            } // else..
-            if (getIdleSeconds() < patience) {
-                { // For omniscience
-                    XAllowEvents(*connection, AsyncKeyboard, CurrentTime);
-                    XAllowEvents(*connection, AsyncPointer, CurrentTime);
-                }
+        XNextEvent(*connection, &event);
+            
+        if (event.type == connection.GetDamageEventOffset() + XDamageNotify) {
+            screen_saver->ReceiveDamageEvent((XDamageNotifyEvent*) &event);
+            continue;
+        }
 
-                // TODO run login if wanted
-                screen_saver.CleanUp();
+        // else..
 
-                return WAIT_IDLE;
-            }
+        if (connection.GetIdleSeconds() < patience) {
+            ExitScreenSaver(); // TODO perhaps run login
+            return INACTIVE;
         }
     }
 }
 
-/* TODO in the future
+void ScreenSaverController::StartScreenSaver()
+{
+    std::cout << "Start screen saver." << std::endl;
+    if ( ! screen_saver ) {
+        screen_saver = new ScreenSaver(connection);
+    }
+}
+void ScreenSaverController::ExitScreenSaver()
+{
+    std::cout << "Exit screen saver." << std::endl;
+    XAllowEvents(*connection, AsyncKeyboard, CurrentTime);
+    XAllowEvents(*connection, AsyncPointer, CurrentTime);
+
+    if (screen_saver) {
+        delete screen_saver;
+        screen_saver = NULL;
+    }
+}
+
+
+/*
+TODO in the future
     Several demos and logins: add to vector
 */
+
+
 void ScreenSaverController::AddDemo(std::string path_to_executable)
 {
     demo_path = path_to_executable;
@@ -107,54 +112,6 @@ void ScreenSaverController::AddDemo(std::string path_to_executable)
 void ScreenSaverController::AddLogin(std::string path_to_executable)
 {
     login_path = path_to_executable;
-}
-
-/////////////
-// HELPERS //
-/////////////
-
-void ScreenSaverController::spawnNextDemo()
-{
-    assert(main_window != None);
-
-    bool ret = false;
-    if ( demo_window != None ) {
-        XDestroyWindow(*connection, demo_window);
-        demo_window = None;
-        ret = true;
-    }
-    // Quit other running demo
-    if ( demo_process ) {
-        delete demo_process;
-        demo_process = NULL;
-        ret = true;
-    }
-    ensureOverlayWindow();
-    if ( ret ) return;
-
-    // Create child window
-    uint width, height;
-    connection.getWindowSize(main_window, width, height);
-    demo_window = connection.createARGBWindow(main_window, 0, 0, width, height);
-    // Ask for events, including MapNotify events.
-    /* XSelectInput(connection, demo_window, StructureNotifyMask); */
-    // Make window appear on screen
-    XMapWindow(*connection, demo_window);
-    // Wait for window to appear on screen
-    /* for(;;) {
-        XEvent e;
-        XNextEvent(connection, &e);
-        if (e.type == MapNotify)
-          break;
-    } */
-    // TODO not sure if we need to wait for mapnotify
-    
-    // Create process which uses this child window
-    const char * args[] = {"-steal", std::to_string(demo_window).c_str()};
-
-    demo_process = new Process(demo_path, sizeof(args) / sizeof(args[0]), args);
-    return;
-    
 }
 
 /* void ScreenSaverController::ensureOverlayWindow()
@@ -179,37 +136,3 @@ void ScreenSaverController::spawnNextDemo()
         XFillRectangle(*connection, main_window, main_gc, 0, 0, width, height);
     }
 } */
-void ScreenSaverController::unlock()
-{
-    if ( demo_window  != None ) {
-        XDestroyWindow(*connection, demo_window);
-        XFlush(*connection);
-        demo_window = None;
-    }
-    if ( demo_process ) {
-        delete demo_process;
-        demo_process = NULL;
-    }
-    if ( login_process ) {
-        delete login_process;
-        login_process = NULL;
-    }
-    // I assume this will close all the child windows
-    if ( main_window != None ) {
-        XDestroyWindow(*connection, main_window);
-        XFlush(*connection);
-        main_window = None;
-    }
-}
-
-static int ScreenSaverController::getIdleSeconds()
-{
-    XScreenSaverControllerInfo *info = XScreenSaverAllocInfo();
-    XScreenSaverControllerQueryInfo(*connection, connection.rootWindow(), info);
-    return info->idle / 1000;
-}
-
-static void ScreenSaverController::create_main_window()
-{
-
-}

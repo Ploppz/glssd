@@ -23,6 +23,8 @@ public:
     void AddWindow(Window new_window);
     void RemoveWindow(Window existing_window);
     void Compose();
+
+    void ReceiveDamageEvent(XDamageNotifyEvent* event);
 private:
     Picture parent_picture;
     XConnection connection;

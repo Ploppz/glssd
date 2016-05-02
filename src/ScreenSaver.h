@@ -1,3 +1,4 @@
+#pragma once
 #include "Process.h"
 #include "Compositor.h"
 #include "XConnection.h"
@@ -8,17 +9,18 @@ class ScreenSaver
 {
  public:
     ScreenSaver(XConnection connection);
+    ~ScreenSaver() { CleanUp(); };
 
     // For now it's just an initial thing
     void RunScreenSaver(std::string executable);
 
     void Event(XEvent event);
-    void ReceiveDamageEvent(XDamageNotifyEvent event);
+    void ReceiveDamageEvent(XDamageNotifyEvent *event);
 
-    // Update
-    void Update();
+
+   void StartScreenSaver(std::string executable);
     //
-    void CleanUp();
+    Window GetMainWindow() { return main_window; };
  private:
    XConnection connection;
 
@@ -30,10 +32,12 @@ class ScreenSaver
    Process* login_process = NULL;
    Compositor compositor;
 
-   void StartScreenSaver(std::string executable);
+    void CleanUp();
 
  private:
    static int get_idle_seconds();
-   static void create_main_window();
+   static int create_main_window(XConnection connection);
+ private: //stash
+    void Update();
 };
 

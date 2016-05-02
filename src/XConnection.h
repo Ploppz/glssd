@@ -23,6 +23,8 @@ public:
 
     int GetDamageEventOffset() { return ext_damage_event; }
     int GetDamageErrorOffset() { return ext_damage_error; }
+
+    int GetIdleSeconds();
 private:
     Display* dpy;
     Window root_window;

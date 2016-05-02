@@ -1,6 +1,8 @@
+#pragma once
 #include "XConnection.h"
 #include "Compositor.h"
 #include "Process.h"
+#include "ScreenSaver.h"
 #include <string>
 
 
@@ -17,13 +19,18 @@ class ScreenSaverController
  private:
     /* State */
     XConnection connection;
+    ScreenSaver* screen_saver = NULL;
 
 
     /* Algorithm */
-    enum State { WAIT_IDLE, WAIT_ACTIVE };
+    enum State { INACTIVE, DEMO, LOGIN};
 
     State WaitForIdle();
-    State WaitForActivity();
+    State RunScreenSaver();
+
+    /* Transitions */
+    void StartScreenSaver();
+    void ExitScreenSaver();
 
     static int getIdleSeconds();
     void spawnNextDemo();

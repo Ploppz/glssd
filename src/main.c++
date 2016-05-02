@@ -2,6 +2,7 @@
  *  - When demo has wrong permissions
  */
 #include "daemon.h"
+#include "ScreenSaverController.h"
 #include "ScreenSaver.h"
 #include "Configuration.h"
 

@@ -4,6 +4,7 @@
 #include <X11/keysym.h>
 #include <X11/Xutil.h>
 #include <X11/extensions/Xdamage.h>
+#include <X11/extensions/scrnsaver.h>
 #include <cstdlib>
 #include <iostream>
 
@@ -110,4 +111,11 @@ Window XConnection::CreateARGBWindow(Window parent, int x, int y, int width, int
                            CWColormap|CWEventMask|CWBackPixmap|CWBorderPixel,
                            &attr
                            ) ;
+}
+
+int XConnection::GetIdleSeconds()
+{
+    XScreenSaverInfo *info = XScreenSaverAllocInfo();
+    XScreenSaverQueryInfo(dpy, GetRootWindow(), info);
+    return info->idle / 1000;
 }

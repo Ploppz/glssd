@@ -2,7 +2,7 @@
 #include "XConnection.h"
 
 ScreenSaver::ScreenSaver(XConnection connection)
-    :connection(connectino), main_window(create_main_window()), compositor(main_window)
+    :connection(connection), main_window(create_main_window(connection)), compositor(main_window, connection)
 {
 
     { /* For omniscience */
@@ -15,16 +15,16 @@ void ScreenSaver::Update()
 {
     compositor.Compose();
 }
+void ScreenSaver::ReceiveDamageEvent(XDamageNotifyEvent *event)
+{
+    compositor.ReceiveDamageEvent(event);
+}
 
 /* Design issue
 1) poll. Update() or something.
 2) blocking function
  */
 
- void ScreenSaver::RunScreenSaver(std::string executable, int time_s)
-{
-    StartScreenSaver(executable);
-}
 void ScreenSaver::StartScreenSaver(std::string executable)
 {
     bool ret = false;
@@ -40,21 +40,37 @@ void ScreenSaver::StartScreenSaver(std::string executable)
         demo_window = None;
         ret = true;
     }
-    ensureOverlayWindow();
     if ( ret ) return;
     // Create child window
     uint width, height;
-    connection.getWindowSize(main_window, width, height);
-    demo_window = connection.createARGBWindow(main_window, 0, 0, width, height);
+    connection.GetWindowSize(main_window, width, height);
+    demo_window = connection.CreateARGBWindow(main_window, 0, 0, width, height);
     XMapWindow(*connection, demo_window);
     // Start process
     const char * args[] = {"-steal", std::to_string(demo_window).c_str()};
-    demo_process = new Process(demo_path, sizeof(args) / sizeof(args[0]), args);
+    demo_process = new Process(executable, sizeof(args) / sizeof(args[0]), args);
 
     compositor.AddWindow(demo_window);
 }
 
-static void ScreenSaver::create_main_window()
+int ScreenSaver::create_main_window(XConnection connection)
 {
     return connection.CreateOverlayWindow();
+}
+void ScreenSaver::CleanUp()
+{
+    // XFlush(*connection);
+
+    if (demo_process) {
+        delete demo_process;
+        demo_process = NULL;
+    }
+    if ( login_process ) {
+        delete login_process;
+        login_process = NULL;
+    }
+    if (main_window != None) {
+        XDestroyWindow(*connection, main_window);
+        main_window = None;
+    }
 }
