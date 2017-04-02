@@ -18,7 +18,7 @@ FRAGSHADERS = $(shell ~/scripts/make/find-filetype src frag)
 VERTSHADERS = $(shell ~/scripts/make/find-filetype src vert)
 SHADER_OBJ = $(shell ~/scripts/make/getshaderobjects src)
 # We have to add the include directory because freetype uses relative (to freetype2 dir) include file names
-FLAGS = -std=c++11 -ggdb -I/usr/include/freetype2 -Wall -Isrc
+FLAGS = -std=c++11 -ggdb -I/usr/include/freetype2 -Wall -Isrc -Iinc -DDONT_CAPTURE_SCREEN
 LDFLAGS = -lGL -lX11 -lXss -lpthread -lXcomposite -lXrender -lXdamage
 DEFINE = -DFREETYPE_GL_USE_VAO -DUSE_GLFW
 CXX = g++

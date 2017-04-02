@@ -7,9 +7,13 @@ public:
     Process(std::string name);
     Process(std::string filename, int argc, const char* argv[]);
 
-    pid_t getPid() { return pid; }
+    pid_t GetPid() { return pid; }
 
     ~Process();
 private:
     pid_t pid;
+
+    void CreatePipe();
+    void ClosePipeReadEnd();
+    int communication_fd[2];
 };

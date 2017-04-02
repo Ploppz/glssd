@@ -12,8 +12,8 @@
  * Child processes close the window 
 */
 
-ScreenSaverController::ScreenSaverController(XConnection connection)
-    : connection(connection)
+ScreenSaverController::ScreenSaverController(XConnection connection, Configuration config)
+    : connection(connection), config(config)
 {
 }
 
@@ -32,7 +32,7 @@ void ScreenSaverController::Run()
             state = RunScreenSaver();
             break;
         case LOGIN:
-            assert(!"LOGIN state not implemented yet.");
+            state = RunLogin();
             break;
         }
     }
@@ -45,9 +45,7 @@ ScreenSaverController::State ScreenSaverController::WaitForIdle()
     {
         std::cout << "Idle: " << connection.GetIdleSeconds() << std::endl;
 
-        if (connection.GetIdleSeconds() > patience) {
-            /*** STATE TRANSITION **/
-            // TODO Remove locker window if it exists
+        if (connection.GetIdleSeconds() > config.patience) {
             StartScreenSaver();
             return DEMO;
         }
@@ -57,11 +55,11 @@ ScreenSaverController::State ScreenSaverController::WaitForIdle()
 ScreenSaverController::State ScreenSaverController::RunScreenSaver()
 {
     assert( screen_saver );
-    screen_saver->StartScreenSaver(demo_path);
     
     // XSelectInput(*connection, main_window, ButtonPressMask | KeyPressMask | PointerMotionMask);
     XSelectInput(*connection, screen_saver->GetMainWindow(), KeyPressMask);
     XEvent event;
+
     while (true) {
         XNextEvent(*connection, &event);
             
@@ -72,46 +70,73 @@ ScreenSaverController::State ScreenSaverController::RunScreenSaver()
 
         // else..
 
-        if (connection.GetIdleSeconds() < patience) {
-            ExitScreenSaver(); // TODO perhaps run login
-            return INACTIVE;
+        if (connection.GetIdleSeconds() < config.patience) {
+            
+            if (config.authentication) {
+                StartLogin();
+                return LOGIN;
+            } else {
+                ExitScreenSaver();
+                return INACTIVE;
+            }
         }
     }
 }
+ScreenSaverController::State ScreenSaverController::RunLogin()
+{
+    assert( screen_saver );
 
+    XEvent event;
+    while (true) {
+        connection.WaitForEventOrTimeout(1000);
+        std::cout << "Wakey wake" << std::endl;
+        bool any_events = false;
+        while (XPending(*connection) > 0) {
+            any_events = true;
+            std::cout << " - event " << std::endl;
+            XNextEvent(*connection, &event);
+            if (event.type == connection.GetDamageEventOffset() + XDamageNotify) {
+                screen_saver->ReceiveDamageEvent((XDamageNotifyEvent*) &event);
+                continue;
+            }
+        }
+        assert(any_events);
+        // Assume that at least the login program will produce frequent enough DamageNotify events
+        if (connection.GetIdleSeconds() > config.login_patience) {
+            ExitLogin();
+            return DEMO;
+        }
+
+        // TODO check if authentication successful
+    }
+}
+
+void ScreenSaverController::StartLogin()
+{
+    std::cout << "Start login." << std::endl;
+    screen_saver->StartLogin(config.login_path);
+}
+void ScreenSaverController::ExitLogin()
+{
+    std::cout << "Quit login" << std::endl;
+    screen_saver->ExitLogin();
+}
 void ScreenSaverController::StartScreenSaver()
 {
     std::cout << "Start screen saver." << std::endl;
     if ( ! screen_saver ) {
         screen_saver = new ScreenSaver(connection);
     }
+    screen_saver->StartScreenSaver(config.demos.front().path);
 }
 void ScreenSaverController::ExitScreenSaver()
 {
     std::cout << "Exit screen saver." << std::endl;
-    XAllowEvents(*connection, AsyncKeyboard, CurrentTime);
-    XAllowEvents(*connection, AsyncPointer, CurrentTime);
 
     if (screen_saver) {
         delete screen_saver;
         screen_saver = NULL;
     }
-}
-
-
-/*
-TODO in the future
-    Several demos and logins: add to vector
-*/
-
-
-void ScreenSaverController::AddDemo(std::string path_to_executable)
-{
-    demo_path = path_to_executable;
-}
-void ScreenSaverController::AddLogin(std::string path_to_executable)
-{
-    login_path = path_to_executable;
 }
 
 /* void ScreenSaverController::ensureOverlayWindow()

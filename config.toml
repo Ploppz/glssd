@@ -1,0 +1,14 @@
+[general]
+patience = 2
+authentication = true
+
+[[demos]]
+path = "/home/ploppz/work/c++/glss-demo/bin/landscape"
+[[demos]]
+path = "/home/ploppz/work/c++/glss-demo/bin/landscape"
+
+# duration, frame rate, options ...
+
+[login]
+path = "/home/ploppz/work/c++/glss-login/bin/glss_login"
+patience = 2

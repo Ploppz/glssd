@@ -25,6 +25,8 @@ public:
     int GetDamageErrorOffset() { return ext_damage_error; }
 
     int GetIdleSeconds();
+
+    void WaitForEventOrTimeout(int timeout_ms);
 private:
     Display* dpy;
     Window root_window;
@@ -32,4 +34,7 @@ private:
     // Extensions
     int ext_damage_event;
     int ext_damage_error;
+
+    // Epoll
+    int epoll_fd;
 };

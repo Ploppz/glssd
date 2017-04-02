@@ -16,6 +16,7 @@ Compositor::Compositor(Window parent_window, XConnection connection)
     parent_picture = XRenderCreatePicture( *connection, parent_window, format, CPSubwindowMode, &pa );
 
 }
+bool already_added_one = false;
 void Compositor::AddWindow(Window new_window)
 {
     WindowInfo new_window_info;
@@ -47,6 +48,7 @@ void Compositor::RemoveWindow(Window existing_window)
     {
         if (it->window == existing_window) {
             windows.erase(it);
+            return;
         }
     }
 }
@@ -59,13 +61,13 @@ void Compositor::ReceiveDamageEvent(XDamageNotifyEvent* event)
     for (auto it = windows.begin(); it < windows.end(); it ++)
     {
         Window damage_drawable = ((XDamageNotifyEvent*)(&event))->drawable;
-        std::cout << "Window " << it->window << " vs Drawable " << damage_drawable << std::endl;
+        std::cout << "Window " << it->window << " vs Drawable " << damage_drawable << " vs Picture " << it->picture << std::endl;
 
+        // TODO They aren't equal..
         // if (it->window == damage_drawable)
         if (true)
         {
-            //
-            std::cout << "Rendering window " << it->window << std::endl;
+            /* std::cout << "Rendering window " << it->window << std::endl; */
             XRenderComposite (*connection,
                            it->has_alpha ? PictOpOver : PictOpSrc,
                            it->picture,
@@ -84,8 +86,7 @@ void Compositor::ReceiveDamageEvent(XDamageNotifyEvent* event)
     }
 }
 
-// Problem: it empties the event queue
-// Question: how are events tied to windows? 
+/* Old solution, not used anymore. Maybe for testing. Listens for _all_ events. */
 
 void Compositor::Compose()
 {

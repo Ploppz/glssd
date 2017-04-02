@@ -10,24 +10,14 @@
 #define BLACK BlackPixel(*dpy, DefaultScreen(*dpy))
 #define WHITE WhitePixel(*dpy, DefaultScreen(*dpy))
 
-
-
-Configuration config("config");
-
-
 int main()
 {
     XConnection dpy;
     XSynchronize(*dpy, True);
 
-    Configuration config("config");
+    //
+    Configuration config("config.toml");
 
-    ScreenSaverController controller(dpy);
-    controller.AddDemo(config.demo_path);
+    ScreenSaverController controller(dpy, config);
     controller.Run();
 }
-
-/////////////
-// STATES //
-///////////
-

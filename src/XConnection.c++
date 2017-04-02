@@ -1,4 +1,5 @@
 #include "XConnection.h"
+#include <assert.h>
 #include <X11/Xlib.h>
 #include <X11/Xatom.h>
 #include <X11/keysym.h>
@@ -7,6 +8,7 @@
 #include <X11/extensions/scrnsaver.h>
 #include <cstdlib>
 #include <iostream>
+#include <sys/epoll.h>
 
 #define BLACK BlackPixel(dpy, DefaultScreen(dpy))
 #define WHITE WhitePixel(dpy, DefaultScreen(dpy))
@@ -20,6 +22,13 @@ XConnection::XConnection()
         std::cerr << "No damage extension" << std::endl;
         exit (1);
     }
+
+    /* Set up epoll, for WaitForEventOrTimeout() */
+    epoll_fd = epoll_create(1);
+    int x_fd = XConnectionNumber(dpy); // File descriptor of the X connection
+    epoll_event out_event;
+    out_event.events = EPOLLIN | EPOLLET;
+    epoll_ctl(epoll_fd, EPOLL_CTL_ADD, x_fd, &out_event);
 }
 
 Display*& XConnection::operator* ()
@@ -118,4 +127,12 @@ int XConnection::GetIdleSeconds()
     XScreenSaverInfo *info = XScreenSaverAllocInfo();
     XScreenSaverQueryInfo(dpy, GetRootWindow(), info);
     return info->idle / 1000;
+}
+
+void XConnection::WaitForEventOrTimeout(int timeout_ms)
+{
+    epoll_event out_event;
+    assert(
+        epoll_wait(epoll_fd, &out_event, 1, timeout_ms)  >= 0
+    );
 }
